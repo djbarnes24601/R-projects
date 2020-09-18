@@ -1,0 +1,140 @@
+---
+title: "TT_Friends"
+output: html_document
+---
+```{r}
+# Load all the packages
+pacman::p_load(pacman,dplyr,GGally, ggplot2, ggthemes, ggvis, httr, lubridate, plotly, rio, rmarkdown, shiny, stringer, tidyr, tidyverse)
+#Packages to load everytime with pacman::p_load
+
+
+```
+
+
+```{r}
+# Load all the Friends data
+  friends <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-08/friends.csv')
+friends_emotions <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-08/friends_emotions.csv')
+friends_info <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-08/friends_info.csv')
+
+```
+
+```{r cars}
+head(friends)
+glimpse(friends)
+```
+
+
+```{r}
+friends %>%
+  count(speaker) %>%
+  arrange(desc(n))
+#Rachel Green has the most dialogue followed by Ross and Chandler 
+
+
+ 
+```
+## Create a dataframe with just the main cast and plot it
+```{r}
+
+main_cast <- friends %>%
+  filter(speaker %in% c("Rachel Green", "Ross Geller", "Chandler Bing", "Monica Geller", "Joey Tribbiani", "Phoebe Buffay"))
+
+ggplot(main_cast, aes(x = speaker)) + geom_bar() + coord_flip()
+
+ 
+```
+
+## Order the barchart
+
+```{r}
+
+main_cast <- friends %>%
+  filter(speaker %in% c("Rachel Green", "Ross Geller", "Chandler Bing", "Monica Geller", "Joey Tribbiani", "Phoebe Buffay"))
+
+# Use fct_infreq to order speakers by count then fct_rev to reverse the order
+ggplot(main_cast, aes(x = fct_rev(fct_infreq(speaker)))) + geom_bar() + coord_flip()
+
+ 
+```
+## How does the main cast compare to all the side characters?
+```{r}
+
+friends %>% 
+  #filter out Null values
+  filter(!is.na(speaker)) %>%
+  
+  #use fct_collapse() to group the main cast together
+  mutate(grouped_cast = fct_collapse(speaker, "Main Cast" = c("Rachel Green", "Ross Geller", "Chandler Bing", "Monica Geller", "Joey Tribbiani", "Phoebe Buffay"))) %>%
+  
+  #use fct_other():keep to group the side characters into Other
+  mutate(grouped_cast = fct_other(grouped_cast, keep = c("Main Cast"))) %>%
+  count(grouped_cast) %>%
+  
+  ggplot(aes( x = grouped_cast, y = n)) + geom_col() 
+  
+
+
+ 
+```
+## Make a word cloud of the main cast's dialogue
+
+First we install wordcloud2  
+```{r}
+install.packages("devtools")
+ require(devtools)
+devtools::install_github("lchiffon/wordcloud2") 
+
+
+ 
+```
+  
+
+## Cleaning Our Text
+
+Using the Text Mining library(tm) to create a corpus and clean our text from stop words 
+```{r}
+library(tm)
+
+#make a corpus of all the main cast's dialogue
+main_cast.corpus = Corpus(VectorSource(main_cast$text))
+
+#Use tm_map to remove clean the text: strip whitespace, remove numbers, remove stop words, etc.
+main_cast.corpus = main_cast.corpus %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace) %>%
+  tm_map(content_transformer(tolower)) %>%
+  tm_map(removeWords, stopwords("english")) %>%
+  tm_map(removeWords, stopwords("SMART")) %>%
+  tm_map(removeWords, c("yeah", "dont", "gonna", "youre", "yknow", "hey")) #words that stopwords("english") misses
+  
+
+
+ 
+```
+## Create Our Word Cloud Dataframe 
+
+Note: I got an error about allocation when I first ran this code. If that happens on your machine check your set R memory limit via memory.limit() and remember that you can change it in the R console using memory.limit(size = ...)
+```{r}
+
+tdm = TermDocumentMatrix(main_cast.corpus) %>%
+  as.matrix()
+words = sort(rowSums(tdm), decreasing = TRUE)
+df = data.frame(word = names(words), freq = words)
+  
+ 
+```
+
+## Finally Generate Our WordCloud
+```{r}
+#Pass in the dataframe into wordcloud2
+#Note: it's a lot of data this might take awhile 
+wordcloud2(df)
+  
+ 
+```
+
+
+
+
